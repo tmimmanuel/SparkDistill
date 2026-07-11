@@ -1,5 +1,7 @@
 # _SP⚡RKDISTILL_
 
+![SparkDistill banner](docs/images/banner.png)
+
 **Continuously-improving student models for the SparkInfer runtime.**
 
 **SPARKDISTILL** turns frontier teacher models (Claude Fable 5, GPT 5.6) into small,
