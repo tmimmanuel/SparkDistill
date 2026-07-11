@@ -438,7 +438,13 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(f"merged PR #{args.pr_number}", file=sys.stderr)
 
-    return 0 if report.get("merge_eligible") else 1
+    # Proof-verified submissions succeed CI even when they are below the merge
+    # threshold (`dataset:none`). Only preflight or proof failures fail the job.
+    proof_verified = bool(
+        report.get("submissions")
+        and report["submissions"][0].get("verified")
+    )
+    return 0 if proof_verified else 1
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ permissions:
   actions: read
   contents: write
   pull-requests: write
+  issues: write
 
 concurrency:
   # Serialize registry merges so two simultaneously-valid PRs cannot race the
@@ -54,6 +55,8 @@ jobs:
           repository: gittensor-model-hub/SparkProof
           path: SparkProof
           ref: main
+          # SparkProof is private; the default GITHUB_TOKEN cannot read it.
+          token: ${{ secrets.SPARKPROOF_CHECKOUT_TOKEN }}
 
       - uses: astral-sh/setup-uv@v6
         with:
