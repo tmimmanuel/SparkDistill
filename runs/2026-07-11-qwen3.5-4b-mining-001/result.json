@@ -11,10 +11,10 @@
       "note": "20-example smoke run (lm-eval 0.4.11, exact_match,strict-match); regression guard only - triton is the domain signal"
     },
     "triton": {
-      "candidate": 0.45,
+      "candidate": 0.42777777777777776,
       "frontier": null,
       "pct_delta": null,
-      "note": "TritonBench quick run (level 1 + bugfix, greedy, vLLM 0.25.0 pinned): syntax 100%, exec pass 0% - the 17-row student writes valid but non-executable Triton 3.7.1; this is the domain baseline to beat"
+      "note": "TritonBench quick run (level 1 + bugfix, greedy temperature 0.0, pinned vLLM 0.25.0): syntax 100%, exec pass 0% - the 17-row student writes valid but non-executable Triton 3.7.1; domain baseline to beat"
     }
   },
   "verified": true,
@@ -25,6 +25,7 @@
   "dataset_url": "https://huggingface.co/datasets/gittensor-model-hub/sparkproof-mining",
   "train_hours": 0.03,
   "train_gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
-  "claim_sha256": "cbd1893694481f8ee794d40e4bf0db671a1136f92f3f3a88d76e6f73ff45e9d6",
-  "claim_bound": true
+  "claim_sha256": "c027fe41dc0f6dedfffe868b51319ed35cbfd904330c01399550b6e00fecd06d",
+  "claim_bound": true,
+  "proof_verified": true
 }
