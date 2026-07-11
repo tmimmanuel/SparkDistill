@@ -132,6 +132,8 @@ def test_serve_checkpoint_passes_served_model_name(monkeypatch):
         assert endpoint.endswith("/v1")
     assert "--served-model-name" in captured["command"]
     assert "ckpt" in captured["command"]
+    assert "--seed" in captured["command"]
+    assert "--no-enable-prefix-caching" in captured["command"]
 
 
 def test_triton_registered_in_basket():

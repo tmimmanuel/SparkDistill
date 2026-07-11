@@ -86,11 +86,14 @@ def check_mix_provenance(
 
 def check_claim(claimed: dict[str, float], rerun: dict[str, float], tolerance_pct: float = 2.0) -> list[str]:
     """Return the benchmark keys where the claimed score diverges from the cheap
-    re-run by more than `tolerance_pct` percentage points (absolute).
+    re-run by more than the tolerance (percentage points, absolute).
 
-    The `triton` re-run is level-1-only, so it is compared against the claim's
-    `triton_quick` (the same problem subset) when present — a full-run composite
-    covers harder levels and would mismatch an honest claim systematically.
+    A benchmark's `claim_tolerance_pct` overrides the global `tolerance_pct`
+    (e.g. triton's tiny problem set drifts more across serving instances than
+    sample-based benchmarks do). The `triton` re-run is level-1-only, so it is
+    compared against the claim's `triton_quick` (the same problem subset) when
+    present — a full-run composite covers harder levels and would mismatch an
+    honest claim systematically.
     """
     mismatches = []
     for key, rerun_value in rerun.items():
@@ -99,7 +102,9 @@ def check_claim(claimed: dict[str, float], rerun: dict[str, float], tolerance_pc
             claimed_value = claimed["triton_quick"]
         if claimed_value is None:
             continue
-        if abs(claimed_value - rerun_value) * 100.0 > tolerance_pct:
+        benchmark = BENCHMARKS.get(key)
+        tolerance = tolerance_pct if benchmark is None or benchmark.claim_tolerance_pct is None else benchmark.claim_tolerance_pct
+        if abs(claimed_value - rerun_value) * 100.0 > tolerance:
             mismatches.append(key)
     return mismatches
 
