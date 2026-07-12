@@ -17,6 +17,16 @@ def test_check_claim_triton_compares_against_quick_subset():
     assert check_claim({"triton": 0.55, "triton_quick": 0.95}, rerun, tolerance_pct=2.0) == ["triton"]
 
 
+def test_check_claim_triton_uses_widened_benchmark_tolerance():
+    # Observed live: honest cross-server drift of 2.1pp on the 3-problem quick
+    # set — within triton's claim_tolerance_pct (5.0), beyond the 2.0 default.
+    claimed = {"triton_quick": 0.4278, "triton": 0.4278}
+    rerun = {"triton": 0.4489}
+    assert check_claim(claimed, rerun, tolerance_pct=2.0) == []
+    # gsm8k keeps the tight default.
+    assert check_claim({"gsm8k": 0.60}, {"gsm8k": 0.631}, tolerance_pct=2.0) == ["gsm8k"]
+
+
 def test_check_claim_triton_falls_back_to_headline_without_quick():
     claimed = {"triton": 0.815}
     rerun = {"triton": 0.82}

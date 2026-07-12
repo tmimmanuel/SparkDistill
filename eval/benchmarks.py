@@ -30,6 +30,11 @@ class Benchmark:
     lm_eval_task: str
     metric: str
     regression_floor_pct: float  # max allowed drop vs. frontier before a regression-* label fires
+    # Per-benchmark override for eval.verify's claim re-run tolerance (percentage
+    # points); None uses the verifier's global default. For where honest re-runs
+    # drift more than that default — e.g. triton's composite over only 3 problems
+    # moves ~7pp when one generation diverges across vLLM server instances.
+    claim_tolerance_pct: float | None = None
 
 
 BENCHMARKS: dict[str, Benchmark] = {
@@ -53,7 +58,11 @@ BENCHMARKS: dict[str, Benchmark] = {
     # TritonBench composite (compile + execute + correctness + API modernity), run via
     # eval.triton_bench, not lm-eval. Its problems are quarantined from training data by
     # SparkProof's release gate, which is what keeps this a legitimate held-out eval.
-    "triton": Benchmark(key="triton", lm_eval_task="", metric="avg_composite", regression_floor_pct=2.0),
+    # claim_tolerance_pct: observed honest cross-server drift of 2.1pp on the current
+    # 3-problem quick set — tighten back toward the 2pp default as problems grow.
+    "triton": Benchmark(
+        key="triton", lm_eval_task="", metric="avg_composite", regression_floor_pct=2.0, claim_tolerance_pct=5.0
+    ),
 }
 
 

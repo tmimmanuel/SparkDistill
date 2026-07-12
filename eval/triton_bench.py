@@ -128,7 +128,9 @@ def serve_checkpoint(model_path: str, port: int = 8000, startup_timeout_s: int =
     rejects requests for the basename with a 404.
     """
     endpoint = f"http://127.0.0.1:{port}/v1"
-    command = ["vllm", "serve", model_path, "--port", str(port)]
+    # --seed and no prefix caching: shrink cross-instance generation drift so a
+    # miner's claim and the validator's re-run see the same numerics.
+    command = ["vllm", "serve", model_path, "--port", str(port), "--seed", "0", "--no-enable-prefix-caching"]
     if served_model_name:
         command += ["--served-model-name", served_model_name]
     proc = subprocess.Popen(
