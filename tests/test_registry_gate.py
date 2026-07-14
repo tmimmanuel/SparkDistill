@@ -237,6 +237,11 @@ def test_close_dataset_pr_posts_gate_comment(monkeypatch):
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(registry_gate.subprocess, "run", fake_run)
-    assert close_dataset_pr(7, ["forged sha256"]) == []
+    assert close_dataset_pr(7, issues=["forged sha256"]) == []
     assert calls[0][:4] == ["gh", "pr", "close", "7"]
     assert "forged sha256" in calls[0][-1]
+
+    calls.clear()
+    assert close_dataset_pr(8, label="dataset:none", issues=["below 25 rows"]) == []
+    assert "below the 25-row merge threshold" in calls[0][-1]
+    assert "below 25 rows" in calls[0][-1]

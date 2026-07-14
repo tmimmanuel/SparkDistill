@@ -25,7 +25,8 @@ _DATASET_TRACK_CHECKBOX_RE = re.compile(
     r"^\s*-\s*\[[xX]\]\s+\*{0,2}Dataset track submission\*{0,2}\s*$",
     re.MULTILINE,
 )
-DATASET_LABELS = REWARDED_DATASET_LABELS | frozenset({"dataset:none", "dataset:REJECT"})
+_AUTO_CLOSE_LABELS = frozenset({"dataset:REJECT", "dataset:none"})
+DATASET_LABELS = REWARDED_DATASET_LABELS | _AUTO_CLOSE_LABELS
 _LABEL_COLORS = {
     "dataset:xl": "1d76db",
     "dataset:l": "0e8a16",
@@ -184,9 +185,20 @@ def update_pr_dataset_label(pr_number: int, label: str) -> list[str]:
     return issues
 
 
-def close_dataset_pr(pr_number: int, issues: list[str] | None = None) -> list[str]:
-    """Close a rejected dataset-track PR after labeling it dataset:REJECT."""
-    summary = "Closed automatically: dataset registry gate rejected this submission."
+def close_dataset_pr(
+    pr_number: int,
+    *,
+    label: str = "dataset:REJECT",
+    issues: list[str] | None = None,
+) -> list[str]:
+    """Close a dataset-track PR that is not merge-eligible."""
+    if label == "dataset:none":
+        summary = (
+            "Closed automatically: verified proof is below the 25-row merge threshold "
+            "(dataset:none)."
+        )
+    else:
+        summary = "Closed automatically: dataset registry gate rejected this submission."
     if issues:
         bullets = "\n".join(f"- {issue}" for issue in issues[:8])
         summary = f"{summary}\n\n{bullets}"
@@ -426,7 +438,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--close-on-reject",
         action="store_true",
-        help="close the GitHub PR when the gate label is dataset:REJECT (CI only)",
+        help="close the GitHub PR when the gate label is dataset:REJECT or dataset:none (CI only)",
     )
     parser.add_argument("--pr-number", type=int, default=None)
     parser.add_argument(
@@ -496,10 +508,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if (
         args.close_on_reject
-        and report.get("label") == "dataset:REJECT"
+        and report.get("label") in _AUTO_CLOSE_LABELS
         and args.pr_number is not None
     ):
-        close_issues = close_dataset_pr(args.pr_number, list(report.get("issues") or []))
+        close_issues = close_dataset_pr(
+            args.pr_number,
+            label=str(report["label"]),
+            issues=list(report.get("issues") or []),
+        )
         if close_issues:
             for issue in close_issues:
                 print(f"  - {issue}", file=sys.stderr)
@@ -518,8 +534,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(f"merged PR #{args.pr_number}", file=sys.stderr)
 
-    # Proof-verified submissions succeed CI even when they are below the merge
-    # threshold (`dataset:none`). Only preflight or proof failures fail the job.
+    # Proof-verified submissions below the merge threshold (`dataset:none`) still
+    # succeed CI; the workflow closes them when --close-on-reject is set.
     proof_verified = bool(
         report.get("submissions")
         and report["submissions"][0].get("verified")

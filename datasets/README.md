@@ -37,8 +37,8 @@ The workflow reads the dataset-track checkbox, rejects changes outside
 (default: [`gittensor-model-hub/sparkproof-mining`](https://huggingface.co/datasets/gittensor-model-hub/sparkproof-mining)),
 replaces any stale `dataset:*` label with the computed result, and merges only when
 verification, aggregation publish, and the `dataset:xs` threshold all pass.
-Rejected PRs are labeled `dataset:REJECT` and closed automatically. Failed
-or sub-threshold PRs remain open.
+Rejected PRs are labeled `dataset:REJECT` and closed automatically. Sub-threshold
+valid proofs (`dataset:none`) are also closed automatically.
 
 The gate runs `eval.registry_gate`, which for each appended registry line:
 
