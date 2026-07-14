@@ -11,13 +11,14 @@ There are **two mining tracks**, each with its own labels and rewards:
 1. **Dataset track** (`dataset:xs/s/m/l/xl`) — run [SparkProof](https://github.com/gittensor-model-hub/SparkProof)
    on a Blackwell CC VM to generate verified Triton training data, publish it to Hugging
    Face, and open a text-only registry PR here. See *Dataset Track* below.
-2. **Training track** (`eval:xs/s/m/l/xl`) — train the student on merged datasets with an
-   improved recipe, beat the frontier eval, and prove it (RTX PRO 6000 CC attestation,
-   ≤ 5h wall-clock). The rest of this guide covers this track.
+2. **Training track** (`eval:xs/s/m/l/xl`) — train the student on the **pinned canonical
+   mining dataset** with an improved recipe, beat the frontier eval, and prove it (RTX PRO
+   6000 CC attestation, ≤ 5h wall-clock). The rest of this guide covers this track.
 
-The same person can mine both: your own merged dataset is the natural raw material for
-your training runs — but every merged dataset is public, so a better dataset only keeps
-you ahead as long as you also train well.
+The same person can mine both: contribute new rows on the dataset track, then compete on
+the training track once those rows are merged into the canonical pin. Every training PR uses
+the same `sparkproof-mining` snapshot — fair comparison is by recipe quality, not private
+data.
 
 ## Dataset Track (`dataset:xs/s/m/l/xl`)
 
@@ -167,10 +168,11 @@ propose the evaluation design separately for maintainer review.
 
 A PR can score when it does all of the following:
 
-- Includes the **recipe and dataset** used to produce the checkpoint — either committed,
-  or (since generated datasets are large and git-ignored) published externally and linked
-  in the PR. See *Sharing Your Dataset* below. This is not optional: no dataset+recipe, no
-  score, no matter how good your local eval numbers look.
+- Includes the **recipe** used to produce the checkpoint and trains on the **pinned
+  canonical mining dataset** only (`data/processed/sparkproof-mining_sft.jsonl` from
+  [`datasets/canonical.json`](../datasets/canonical.json)). See *Sharing Your Dataset And
+  Recipe* below. This is not optional: no canonical dataset + recipe, no score, no matter
+  how good your local eval numbers look.
 - Trains / regenerates trajectories from source on the evaluator's hardware.
 - Preserves correctness against the frozen benchmark reference (no format breakage, no
   garbled outputs).
@@ -293,13 +295,17 @@ In practice today:
 
 - Small recipe changes: just include the changed `sft.yaml` (or new recipe file) in your
   PR as normal.
-- Datasets: `data/processed/` is git-ignored (these files are large). Train on the
-  **canonical mining dataset** ([`gittensor-model-hub/sparkproof-mining`](https://huggingface.co/datasets/gittensor-model-hub/sparkproof-mining))
-  updated automatically when registry PRs merge, and cite it via `proof.bundle --dataset-url`.
-  If you generated new Triton data, run it through SparkProof and the registry first —
-  that verifies, labels, and rewards it on its own, and makes your training PR trivially
-  reproducible. See [`datasets/README.md`](../datasets/README.md) and
-  `scripts/registry_line.sh` to build the registry JSON line after publish.
+- Datasets: `data/processed/` is git-ignored (these files are large). **Training-track
+  PRs must use the pinned canonical mining dataset**
+  ([`gittensor-model-hub/sparkproof-mining`](https://huggingface.co/datasets/gittensor-model-hub/sparkproof-mining),
+  pin in [`datasets/canonical.json`](../datasets/canonical.json)). Prepare locally with
+  `scripts/prepare_mining_sft.sh` (verifies the Hugging Face manifest matches the pin) and
+  point your recipe at `data/processed/sparkproof-mining_sft.jsonl`. Cite the canonical
+  URL and pinned `sft_sha256` in your PR body and via `proof.bundle --dataset-url`.
+  **Do not** generate private blends (`eval/gen_*.py`, `scripts/prepare_triton*.sh`) for
+  competition PRs — CI rejects them. New rows enter through SparkProof + the dataset
+  registry first; registry merges refresh the pin on `main` automatically. See
+  [`datasets/README.md`](../datasets/README.md) and `scripts/registry_line.sh`.
 
 ## Proof Of Training (Skip Full Retrain-Verification)
 
@@ -313,15 +319,17 @@ much cheaper verification pass:
 # install the attestation + Hugging Face publishing extras
 uv sync --extra proof
 
+# prepare canonical training data + mix_manifest.json for the proof bundle
+scripts/prepare_mining_sft.sh
+
 # 1. package the CLAIM into a bundle — eval scores + training claims + a per-file
 #    sha256 manifest of your checkpoint. The weights themselves are NOT uploaded:
 #    the validator reproduces your checkpoint locally from the recipe + dataset.
 python -m proof.bundle --checkpoint outputs/<your-checkpoint> --scores eval/results/candidate.json \
     --run-id <run-id> --out proof/_bundles/<run-id> \
     --train-hours 4.2 --train-gpu "NVIDIA RTX PRO 6000 Blackwell" \
-    --dataset-url https://huggingface.co/datasets/<user>/<merged-dataset>
-# or, for a cross-miner mix:
-#   --mix-manifest data/processed/mix_manifest.json
+    --dataset-url https://huggingface.co/datasets/gittensor-model-hub/sparkproof-mining \
+    --mix-manifest data/processed/mix_manifest.json
 # note the printed claim_sha256
 
 # 2. attest the GPU you trained/evaluated on, passing the claim_sha256 as the nonce

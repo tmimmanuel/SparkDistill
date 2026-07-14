@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Export canonical HF mining dataset to local Axolotl messages jsonl.
+# Export canonical HF mining dataset to local Axolotl messages jsonl and save
+# mix_manifest.json for proof.bundle --mix-manifest.
 #
 #   scripts/prepare_mining_sft.sh
 #   scripts/prepare_mining_sft.sh --out data/processed/sparkproof-mining_sft.jsonl
