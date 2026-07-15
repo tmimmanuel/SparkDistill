@@ -90,7 +90,12 @@ def check_training_claims(
     return issues
 
 
-def check_canonical_dataset_claim(manifest: dict, *, bundle_dir: Path | None = None) -> list[str]:
+def check_canonical_dataset_claim(
+    manifest: dict,
+    *,
+    bundle_dir: Path | None = None,
+    acceptable_sft_shas: set[str] | None = None,
+) -> list[str]:
     """Training-track bundles must cite the pinned canonical mining dataset."""
     issues: list[str] = []
     dataset_url = manifest.get("dataset_url")
@@ -116,13 +121,16 @@ def check_canonical_dataset_claim(manifest: dict, *, bundle_dir: Path | None = N
         if mix_path.exists():
             mix_data = json.loads(mix_path.read_text(encoding="utf-8"))
             remote_sft_sha = mix_data.get("sft_sha256")
-            try:
-                expected_sft_sha = canonical_sft_sha256()
-            except ValueError:
-                return issues
-            if remote_sft_sha != expected_sft_sha:
+            allowed = acceptable_sft_shas
+            if allowed is None:
+                try:
+                    allowed = {canonical_sft_sha256()}
+                except ValueError:
+                    return issues
+            if remote_sft_sha not in allowed:
                 issues.append(
-                    "bundle mix_manifest.sft_sha256 does not match datasets/canonical.json pin"
+                    "bundle mix_manifest.sft_sha256 does not match an accepted canonical pin "
+                    f"(allowed {len(allowed)} pin(s) for this PR window)"
                 )
     return issues
 

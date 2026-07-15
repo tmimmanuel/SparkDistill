@@ -38,6 +38,19 @@ def canonical_sft_sha256(path: Path = CANONICAL_PATH) -> str:
     return value
 
 
+def sft_sha256_from_canonical_text(text: str) -> str | None:
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    value = (payload.get("mix_manifest") or {}).get("sft_sha256")
+    if isinstance(value, str) and len(value) == 64:
+        return value
+    return None
+
+
 def fetch_remote_mix_manifest(
     *,
     repo_id: str | None = None,

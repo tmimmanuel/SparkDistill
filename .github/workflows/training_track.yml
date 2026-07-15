@@ -43,6 +43,7 @@ jobs:
           git diff --name-only \
             "${MERGE_BASE}" \
             refs/remotes/origin/training-pr-head > /tmp/changed_paths.txt
+          echo "${MERGE_BASE}" > /tmp/merge_base_ref.txt
 
       - uses: astral-sh/setup-uv@v6
         with:
@@ -58,6 +59,7 @@ jobs:
         run: |
           uv run python -m eval.training_track_gate \
             --head-ref refs/remotes/origin/training-pr-head \
+            --merge-base-ref "$(cat /tmp/merge_base_ref.txt)" \
             --out eval/results/training_track_gate_report.json \
             --pr-body-file /tmp/pr_body.md \
             --changed-paths-file /tmp/changed_paths.txt \
