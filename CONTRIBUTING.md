@@ -88,6 +88,10 @@ add local generators (`eval/gen_*.py`), private blends, or non-canonical recipe 
 rejected by CI. New rows enter through the dataset track first; registry merges refresh
 the pin on `main` automatically.
 
+**Pin grace ([#121]):** if the canonical pin advances on `main` while you are training,
+your training PR still passes when the proof bundle's `mix_manifest.sft_sha256` matches
+any pin from the PR merge-base through HEAD — cite that pin in the PR body.
+
 A PR whose recipe can't be reproduced because it uses unpublished or non-canonical data
 should be treated as incomplete, even if local eval numbers look good.
 

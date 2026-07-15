@@ -374,6 +374,15 @@ In practice today:
   registry first; registry merges refresh the pin on `main` automatically. See
   [`datasets/README.md`](../datasets/README.md) and `scripts/registry_line.sh`.
 
+**Canonical pin grace window ([#121]):** a full train→eval cycle can take ~60 minutes.
+If a dataset-track PR merges while you are training, `main` HEAD may advance to a newer
+pin before you open your training PR. CI accepts your proof bundle when
+`mix_manifest.sft_sha256` matches **any canonical pin from your PR's merge-base through
+current HEAD** — cite that same pin in the PR body. Pins outside that window still reject.
+Prepare with `scripts/prepare_mining_sft.sh` at train time; you do not need to retrain
+just because the pin moved after you started, as long as your bundle matches a pin in
+that window.
+
 ## Proof Of Training (Skip Full Retrain-Verification)
 
 By default, the evaluator retrains/re-evals your PR from source — accurate, but slow.

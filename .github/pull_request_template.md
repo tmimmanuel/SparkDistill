@@ -46,7 +46,7 @@ trains on the same pinned canonical dataset — no local generators, private ble
 alternate `data/processed/` paths.
 
 - Canonical dataset URL (required): `https://huggingface.co/datasets/gittensor-model-hub/sparkproof-mining`
-- Pinned `sft_sha256` (required, from [`datasets/canonical.json`](datasets/canonical.json)):
+- Pinned `sft_sha256` (required, cite the pin you trained on — any pin from merge-base through HEAD is accepted; see [#121](https://github.com/gittensor-model-hub/SparkDistill/pull/121)):
 - Recipe changed:
 - Frontier benchmark delta:
 - Proof-bundle URL (required): `https://huggingface.co/<user>/sparkdistill-<run-id>`

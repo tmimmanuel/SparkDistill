@@ -123,7 +123,9 @@ Face `proof/` bundle, **aggregates all merged datasets into the canonical mining
 labels `dataset:xs`–`xl`, and merges only if aggregation + publish succeed (≥25 verified rows).
 Build the registry line with `scripts/registry_line.sh` (see [`datasets/README.md`](datasets/README.md)).
 Training miners point recipes at the mining dataset HF URL or cite it via
-`proof.bundle --dataset-url`.
+`proof.bundle --dataset-url`. The training gate accepts bundles pinned to any canonical
+`sft_sha256` from the PR merge-base through HEAD ([#121](https://github.com/gittensor-model-hub/SparkDistill/pull/121)),
+so dataset merges mid-train do not waste GPU.
 
 ## Canonical mining dataset
 

@@ -112,6 +112,11 @@ pinned `mix_manifest.sft_sha256` and row count.
 **In-repo pin:** [`canonical.json`](canonical.json) — `repo_id`, `hf_url`,
 `training_dataset_path`, and `mix_manifest.sft_sha256`.
 
+**Training-track pin grace ([#121]):** dataset merges can advance the pin while a miner
+is still training. The training gate accepts proof bundles whose `sft_sha256` matches
+any canonical pin from the PR merge-base through `main` HEAD (not only live HEAD).
+Miners cite the pin they trained on in the PR body; stale pins outside that window reject.
+
 Before a registry PR merges, CI:
 
 1. Verifies the miner's `proof/` bundle

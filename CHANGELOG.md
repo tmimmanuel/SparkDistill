@@ -6,6 +6,13 @@ All notable changes to SparkDistill are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Training-track canonical pin grace window** ([#121], fixes [#118]): training PRs
+  no longer fail when dataset-track merges advance `datasets/canonical.json` while a
+  miner is still training (~60 min cycles). The gate accepts any `sft_sha256` from the
+  PR merge-base through `main` HEAD (merge-base pin, each intermediate pin commit, and
+  current HEAD). Cite the pin you actually trained on in the PR body; the proof bundle
+  `mix_manifest.sft_sha256` must match one of those accepted pins. Live HF pin vs HEAD
+  check is unchanged.
 - **Intel TDX for dataset-track bundles** ([#122], SparkProof [#22]): production
   dataset verification now requires `gpu_attestation.tdx` with `report_data` bound
   to the same dataset nonce as NRAS GPU CC attestation — closing the userland trust
