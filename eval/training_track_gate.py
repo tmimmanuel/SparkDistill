@@ -26,6 +26,7 @@ from eval.canonical_dataset import (
     canonical_hf_url,
     canonical_sft_sha256,
     load_canonical,
+    sft_sha256_from_canonical_text,
     verify_remote_matches_pin,
 )
 from eval.verify import check_canonical_dataset_claim
@@ -140,18 +141,78 @@ def validate_recipe_paths_in_ref(head_ref: str, recipe_paths: list[str]) -> list
     return issues
 
 
-def validate_pr_body_canonical_pin(pr_body: str | None) -> list[str]:
+def _canonical_sft_sha256s_for_pr_window(
+    *,
+    merge_base_ref: str | None,
+    head_ref: str = "HEAD",
+) -> set[str]:
+    """Canonical pins valid for a training PR while dataset-track merges advance HEAD."""
+    shas: set[str] = set()
+
+    def add_from_ref(ref: str) -> None:
+        text = _git_show(ref, CANONICAL_PATH.as_posix())
+        if not text:
+            return
+        sha = sft_sha256_from_canonical_text(text)
+        if sha:
+            shas.add(sha)
+
+    add_from_ref(head_ref)
+    if not merge_base_ref:
+        return shas
+
+    add_from_ref(merge_base_ref)
+    log = subprocess.run(
+        [
+            "git",
+            "log",
+            "--format=%H",
+            f"{merge_base_ref}..{head_ref}",
+            "--",
+            CANONICAL_PATH.as_posix(),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if log.returncode == 0:
+        for commit in log.stdout.splitlines():
+            commit = commit.strip()
+            if commit:
+                add_from_ref(commit)
+    return shas
+
+
+def validate_pr_body_canonical_pin(
+    pr_body: str | None,
+    *,
+    acceptable_sft_shas: set[str] | None = None,
+) -> list[str]:
     if not pr_body:
         return ["training-track PR body must cite the pinned canonical dataset URL and sft_sha256"]
     issues: list[str] = []
     expected_url = canonical_hf_url()
     if expected_url not in pr_body:
         issues.append(f"PR body must cite canonical dataset URL {expected_url}")
-    expected_sha = canonical_sft_sha256()
-    if expected_sha not in pr_body and not _CANONICAL_SHA_IN_BODY_RE.search(pr_body):
+
+    allowed = acceptable_sft_shas
+    if allowed is None:
+        try:
+            allowed = {canonical_sft_sha256()}
+        except ValueError as exc:
+            issues.append(str(exc))
+            return issues
+
+    cited_shas = set(_CANONICAL_SHA_IN_BODY_RE.findall(pr_body))
+    if not cited_shas:
         issues.append(
-            f"PR body must cite pinned canonical sft_sha256 {expected_sha} "
-            f"(from {CANONICAL_PATH})"
+            "PR body must cite the canonical sft_sha256 used for training "
+            f"(one of: {', '.join(sorted(allowed))})"
+        )
+    elif not cited_shas & allowed:
+        issues.append(
+            "PR body sft_sha256 must match a canonical pin from this PR's merge-base window "
+            f"(allowed: {', '.join(sorted(allowed))})"
         )
     return issues
 
@@ -203,6 +264,7 @@ def verify_remote_proof_bundle(
     repo_id: str,
     *,
     hf_token: str | None = None,
+    acceptable_sft_shas: set[str] | None = None,
 ) -> list[str]:
     """Download the cited bundle manifest and verify canonical dataset claims."""
     from huggingface_hub import hf_hub_download
@@ -224,6 +286,13 @@ def verify_remote_proof_bundle(
 
     issues.extend(check_canonical_dataset_claim(manifest))
 
+    allowed = acceptable_sft_shas
+    if allowed is None:
+        try:
+            allowed = {canonical_sft_sha256()}
+        except ValueError:
+            allowed = set()
+
     try:
         mix_manifest_path = hf_hub_download(
             repo_id=repo_id,
@@ -233,10 +302,10 @@ def verify_remote_proof_bundle(
         )
         mix_data = json.loads(Path(mix_manifest_path).read_text(encoding="utf-8"))
         remote_sft_sha = mix_data.get("sft_sha256")
-        expected_sft_sha = canonical_sft_sha256()
-        if remote_sft_sha != expected_sft_sha:
+        if remote_sft_sha not in allowed:
             issues.append(
-                "proof bundle mix_manifest.sft_sha256 does not match datasets/canonical.json pin"
+                "proof bundle mix_manifest.sft_sha256 does not match an accepted canonical pin "
+                f"for this PR window (allowed {len(allowed)} pin(s))"
             )
     except Exception:
         pass
@@ -273,6 +342,7 @@ def gate_training_pr(
     head_ref: str,
     changed_paths: list[str] | None,
     pr_body: str | None,
+    merge_base_ref: str | None = None,
     verify_hf_pin: bool = True,
     verify_proof_bundle: bool = True,
     hf_token: str | None = None,
@@ -286,6 +356,11 @@ def gate_training_pr(
             "training_dataset_path": CANONICAL_TRAINING_DATASET_PATH,
         }
 
+    acceptable_sft_shas = _canonical_sft_sha256s_for_pr_window(
+        merge_base_ref=merge_base_ref,
+        head_ref="HEAD",
+    )
+
     issues: list[str] = []
     if pr_body is not None and not is_training_track_pr(pr_body):
         issues.append("check 'Training/evaluation improvement' in the pull request template")
@@ -294,7 +369,7 @@ def gate_training_pr(
     recipe_paths = sorted({path for path in (changed_paths or []) if path.startswith("recipes/")})
     issues.extend(validate_recipe_paths_in_ref(head_ref, recipe_paths))
 
-    issues.extend(validate_pr_body_canonical_pin(pr_body))
+    issues.extend(validate_pr_body_canonical_pin(pr_body, acceptable_sft_shas=acceptable_sft_shas))
     issues.extend(validate_pr_body_proof_bundle(pr_body))
 
     if verify_hf_pin:
@@ -303,7 +378,13 @@ def gate_training_pr(
     if verify_proof_bundle:
         repo_id = parse_proof_bundle_hf_repo(pr_body)
         if repo_id is not None:
-            issues.extend(verify_remote_proof_bundle(repo_id, hf_token=hf_token))
+            issues.extend(
+                verify_remote_proof_bundle(
+                    repo_id,
+                    hf_token=hf_token,
+                    acceptable_sft_shas=acceptable_sft_shas,
+                )
+            )
 
     label = "training:valid" if not issues else "training:REJECT"
     return {
@@ -311,6 +392,7 @@ def gate_training_pr(
         "label": label,
         "issues": issues,
         "canonical": load_canonical(),
+        "acceptable_sft_shas": sorted(acceptable_sft_shas),
         "training_dataset_path": CANONICAL_TRAINING_DATASET_PATH,
     }
 
@@ -368,6 +450,11 @@ def close_training_pr(pr_number: int, issues: list[str]) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--head-ref", default="HEAD")
+    parser.add_argument(
+        "--merge-base-ref",
+        default=None,
+        help="git ref for merge-base with the PR base; enables canonical-pin grace window",
+    )
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--pr-body-file", type=Path, default=None)
     parser.add_argument("--changed-paths-file", type=Path, default=None)
@@ -391,6 +478,7 @@ def main(argv: list[str] | None = None) -> int:
         head_ref=args.head_ref,
         changed_paths=changed_paths,
         pr_body=pr_body,
+        merge_base_ref=args.merge_base_ref,
         verify_hf_pin=not args.skip_hf_pin_check,
         verify_proof_bundle=not args.skip_proof_bundle_check,
         hf_token=os.environ.get("HF_TOKEN"),
