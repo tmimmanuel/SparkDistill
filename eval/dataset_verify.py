@@ -14,7 +14,10 @@ artifacts), and opens a text-only PR here linking that HF repo plus the bundle's
 4. Re-runs full production `sparkproof-verify` (pinned generator, pinned teachers,
    raw/verified consistency, merkle, attestation nonce) when a SparkProof checkout is
    available — required for merge.
-5. Sizes the dataset into a reward label from verified row count:
+5. Sizes the dataset into a reward label from verified row count (bundle sizing).
+   SparkDistill's registry gate then **downgrades to a fair label** from
+   ``mix_manifest.components[].rows_selected`` after cross-registry dedupe — see
+   ``eval.fair_dataset_label``.
 
    | label | rows |
    |---|---|

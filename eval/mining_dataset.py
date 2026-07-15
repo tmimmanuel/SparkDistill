@@ -89,19 +89,18 @@ def publish_sft_dataset(
     }
 
 
-def aggregate_and_publish_mining_dataset(
+def aggregate_mining_mix(
     registry_entries: list[dict[str, Any]],
     *,
-    repo_id: str,
+    repo_id: str = DEFAULT_MINING_DATASET_REPO,
     sparkproof_root: Path | None = None,
     work_dir: Path | None = None,
     dedupe: str | None = None,
     download_proof: Callable[[str, Path | None], Path] | None = None,
-    publish_fn: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Mix all registry entries and publish to the canonical mining dataset repo."""
+    """Mix registry entries locally without publishing to Hugging Face."""
     if not registry_entries:
-        return {"published": False, "issues": ["registry is empty — nothing to aggregate"]}
+        return {"verified": False, "issues": ["registry is empty — nothing to aggregate"]}
 
     cleanup = work_dir is None
     if work_dir is None:
@@ -125,17 +124,80 @@ def aggregate_and_publish_mining_dataset(
             download_proof=download_proof,
         )
         verify_report = verify_mix_manifest(manifest_path, sft_path=sft_path, registry_path=registry_path)
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         if not verify_report.get("verified"):
             return {
-                "published": False,
+                "verified": False,
                 "issues": list(verify_report.get("issues") or ["mix verification failed"]),
                 "rows_total": mix_result.rows_total,
+                "manifest": manifest,
+                "components": manifest.get("components") or [],
+                "dedupe": mix_result.dedupe,
+            }
+
+        return {
+            "verified": True,
+            "issues": [],
+            "rows_total": mix_result.rows_total,
+            "manifest": manifest,
+            "components": manifest.get("components") or [],
+            "dedupe": mix_result.dedupe,
+            "sft_path": sft_path,
+            "manifest_path": manifest_path,
+        }
+    finally:
+        if cleanup:
+            import shutil
+
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def aggregate_and_publish_mining_dataset(
+    registry_entries: list[dict[str, Any]],
+    *,
+    repo_id: str,
+    sparkproof_root: Path | None = None,
+    work_dir: Path | None = None,
+    dedupe: str | None = None,
+    download_proof: Callable[[str, Path | None], Path] | None = None,
+    publish_fn: Callable[..., dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Mix all registry entries and publish to the canonical mining dataset repo."""
+    if not registry_entries:
+        return {"published": False, "issues": ["registry is empty — nothing to aggregate"]}
+
+    cleanup = work_dir is None
+    if work_dir is None:
+        work_dir = Path(tempfile.mkdtemp(prefix="sparkdistill-mining-"))
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        mix_report = aggregate_mining_mix(
+            registry_entries,
+            repo_id=repo_id,
+            sparkproof_root=sparkproof_root,
+            work_dir=work_dir,
+            dedupe=dedupe,
+            download_proof=download_proof,
+        )
+        if not mix_report.get("verified"):
+            return {
+                "published": False,
+                "issues": list(mix_report.get("issues") or ["mix verification failed"]),
+                "rows_total": mix_report.get("rows_total"),
+                "components": mix_report.get("components") or [],
             }
 
         publish = publish_fn or publish_sft_dataset
-        pub_report = publish(sft_path=sft_path, manifest_path=manifest_path, repo_id=repo_id)
+        pub_report = publish(
+            sft_path=mix_report["sft_path"],
+            manifest_path=mix_report["manifest_path"],
+            repo_id=repo_id,
+        )
         pub_report["component_count"] = len(registry_entries)
-        pub_report["dedupe"] = mix_result.dedupe
+        pub_report["dedupe"] = mix_report.get("dedupe")
+        pub_report["components"] = mix_report.get("components") or []
+        pub_report["manifest"] = mix_report.get("manifest")
         return pub_report
     finally:
         if cleanup:

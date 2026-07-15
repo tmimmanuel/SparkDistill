@@ -183,6 +183,11 @@ def test_verified_sub_threshold_dataset_is_not_merge_eligible(monkeypatch):
             "issues": [],
         },
     )
+    monkeypatch.setattr(
+        registry_gate,
+        "compute_rows_selected_for_entry",
+        lambda *args, **kwargs: {"verified": True, "rows_selected": 24, "issues": []},
+    )
     report = gate_registry_pr(
         base_registry_text="",
         head_registry_text=json.dumps(_entry(rows_total=24)) + "\n",
@@ -194,7 +199,7 @@ def test_verified_sub_threshold_dataset_is_not_merge_eligible(monkeypatch):
     assert report["reward_eligible"] is False
     assert report["merge_eligible"] is False
     assert report["label"] == "dataset:none"
-    assert any("25 verified rows" in issue for issue in report["issues"])
+    assert any("25 canonical-mix rows" in issue for issue in report["issues"])
 
 
 def test_verified_dataset_xs_is_merge_eligible(monkeypatch):
@@ -207,6 +212,11 @@ def test_verified_dataset_xs_is_merge_eligible(monkeypatch):
             "rows_total": 25,
             "issues": [],
         },
+    )
+    monkeypatch.setattr(
+        registry_gate,
+        "compute_rows_selected_for_entry",
+        lambda *args, **kwargs: {"verified": True, "rows_selected": 25, "issues": []},
     )
     report = gate_registry_pr(
         base_registry_text="",
@@ -232,6 +242,11 @@ def test_verified_dataset_s_is_merge_eligible(monkeypatch):
             "issues": [],
         },
     )
+    monkeypatch.setattr(
+        registry_gate,
+        "compute_rows_selected_for_entry",
+        lambda *args, **kwargs: {"verified": True, "rows_selected": 50, "issues": []},
+    )
     report = gate_registry_pr(
         base_registry_text="",
         head_registry_text=json.dumps(_entry(rows_total=50)) + "\n",
@@ -243,6 +258,37 @@ def test_verified_dataset_s_is_merge_eligible(monkeypatch):
     assert report["reward_eligible"] is True
     assert report["merge_eligible"] is True
     assert report["issues"] == []
+
+
+def test_gate_registry_pr_downgrades_bundle_label_to_fair_mix_label(monkeypatch):
+    monkeypatch.setattr(
+        registry_gate,
+        "gate_registry_submission",
+        lambda *args, **kwargs: {
+            "verified": True,
+            "label": "dataset:xl",
+            "rows_total": 159,
+            "issues": [],
+        },
+    )
+    monkeypatch.setattr(
+        registry_gate,
+        "compute_rows_selected_for_entry",
+        lambda *args, **kwargs: {"verified": True, "rows_selected": 25, "issues": []},
+    )
+    report = gate_registry_pr(
+        base_registry_text=json.dumps(_entry()) + "\n",
+        head_registry_text=json.dumps(_entry()) + "\n" + json.dumps(_entry(miner="bob", trajectories_sha256="b" * 64, rows_total=159)) + "\n",
+        sparkproof_root=Path("."),
+        pr_body="- [x] **Dataset track submission**",
+        changed_paths=["datasets/registry.jsonl"],
+        mining_dataset_repo_id=None,
+    )
+    assert report["verified"] is True
+    assert report["label"] == "dataset:xs"
+    assert report["submissions"][0]["bundle_label"] == "dataset:xl"
+    assert report["submissions"][0]["rows_selected"] == 25
+    assert any("fair label dataset:xs" in issue for issue in report["issues"])
 
 
 def test_update_pr_dataset_label_replaces_stale_label(monkeypatch):

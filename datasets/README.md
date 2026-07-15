@@ -107,6 +107,11 @@ copies at mix time — `exact` drops identical prompts; the older `near` mode al
 structurally similar rows and shrank nghetienhiep's 161-row submission to 77 when mixed
 with speedy00. Set `SPARKDISTILL_MINING_DEDUPE=none` only for local debugging.
 
+**Fair reward labels:** after mixing, the gate labels each submission from
+`mix_manifest.components[].rows_selected` (canonical contribution), not raw bundle
+`rows_total`. A 159-row bundle that only adds 25 novel mix rows earns `dataset:xs`, not
+`dataset:xl`.
+
 After each eligible registry merge, CI refreshes [`canonical.json`](canonical.json) from
 the live HF `mix_manifest.json` (also triggered by `.github/workflows/update_canonical_pin.yml`).
 

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from eval.dataset_verify import MERGE_THRESHOLD_ROWS, REWARDED_DATASET_LABELS, verify_dataset_submission
+from eval.fair_dataset_label import apply_fair_label, compute_rows_selected_for_entry
 from eval.gpu_architecture import dataset_architecture_allowed, normalize_gpu_architecture
 
 REGISTRY_PATH = Path("datasets/registry.jsonl")
@@ -369,16 +370,36 @@ def gate_registry_pr(
         }
 
     report = gate_registry_submission(added[0], sparkproof_root=sparkproof_root, existing_registry=existing)
-    eligible = reward_eligible(report)
     issues = list(report.get("issues", []))
+
+    if report.get("verified"):
+        from eval.mining_dataset import aggregate_registry_text, mining_dedupe_mode
+
+        proposed_registry = aggregate_registry_text(base_registry_text, head_registry_text)
+        fair_mix = compute_rows_selected_for_entry(
+            proposed_registry,
+            str(added[0]["trajectories_sha256"]),
+            sparkproof_root=sparkproof_root,
+            dedupe=mining_dedupe_mode(),
+        )
+        if not fair_mix.get("verified"):
+            report["verified"] = False
+            report["label"] = "dataset:REJECT"
+            issues.extend(list(fair_mix.get("issues") or ["fair-label mix failed"]))
+        else:
+            report = apply_fair_label(report, rows_selected=int(fair_mix["rows_selected"]))
+            if report.get("fair_label_note"):
+                issues.append(str(report["fair_label_note"]))
+
+    eligible = reward_eligible(report)
     if report.get("verified") and not eligible:
         issues.append(
-            f"dataset proof is valid but fewer than {MERGE_THRESHOLD_ROWS} verified rows does not meet "
+            f"dataset proof is valid but fewer than {MERGE_THRESHOLD_ROWS} canonical-mix rows does not meet "
             "the dataset:xs merge/reward threshold"
         )
 
     mining_report: dict[str, Any] | None = None
-    merge_eligible = eligible
+    merge_eligible_flag = eligible
     if eligible and mining_dataset_repo_id:
         from eval.mining_dataset import aggregate_and_publish_mining_dataset, aggregate_registry_text
 
@@ -391,17 +412,17 @@ def gate_registry_pr(
                 sparkproof_root=sparkproof_root,
             )
         except (OSError, RuntimeError, ValueError) as exc:
-            merge_eligible = False
+            merge_eligible_flag = False
             issues.append(f"mining dataset aggregation failed: {exc}")
         else:
             if not mining_report.get("published"):
-                merge_eligible = False
+                merge_eligible_flag = False
                 issues.extend(list(mining_report.get("issues") or ["mining dataset publish failed"]))
 
     return {
         "verified": report.get("verified", False),
         "reward_eligible": eligible,
-        "merge_eligible": merge_eligible,
+        "merge_eligible": merge_eligible_flag,
         "label": report.get("label"),
         "issues": issues,
         "submissions": [report],

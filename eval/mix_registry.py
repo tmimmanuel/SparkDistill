@@ -157,7 +157,10 @@ def _import_novelty(sparkproof_root: Path | None):
     root = sparkproof_root.resolve()
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    from sparkproof.triton_dataset.novelty import NoveltyRegistry, fingerprint_row
+    try:
+        from sparkproof.triton_dataset.novelty import NoveltyRegistry, fingerprint_row
+    except ImportError:
+        return None
 
     return NoveltyRegistry, fingerprint_row
 

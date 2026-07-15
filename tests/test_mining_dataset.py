@@ -91,6 +91,12 @@ def test_gate_blocks_merge_when_mining_publish_fails(monkeypatch):
     def fail_publish(*args, **kwargs):
         return {"published": False, "issues": ["hf upload failed"]}
 
+    monkeypatch.setattr(
+        registry_gate,
+        "compute_rows_selected_for_entry",
+        lambda *args, **kwargs: {"verified": True, "rows_selected": 25, "issues": []},
+    )
+
     report = registry_gate.gate_registry_pr(
         base_registry_text="",
         head_registry_text=json.dumps(_registry_entry("alice", "a" * 64)) + "\n",
@@ -126,6 +132,12 @@ def test_gate_merges_when_mining_publish_succeeds(monkeypatch):
             "rows_total": 25,
             "issues": [],
         }
+
+    monkeypatch.setattr(
+        registry_gate,
+        "compute_rows_selected_for_entry",
+        lambda *args, **kwargs: {"verified": True, "rows_selected": 25, "issues": []},
+    )
 
     report = registry_gate.gate_registry_pr(
         base_registry_text="",
